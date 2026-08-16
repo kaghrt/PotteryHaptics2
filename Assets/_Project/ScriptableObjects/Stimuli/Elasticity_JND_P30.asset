@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef9be167589659141b42a0ef8d272af4, type: 3}
+  m_Name: Elasticity_JND_P30
+  m_EditorClassIdentifier: _Project.Core::PotteryHaptics.Core.StimulusDefinition
+  textureType: 0
+  physicalValue: 1.3
+  relativeIntensityPercent: 30
+  intensityLevel: 0
+  displayName: "\u5F3E\u6027\u6BD4\u8F03\u523A\u6FC0(+30%)"
