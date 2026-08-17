@@ -37,6 +37,15 @@ namespace PotteryHaptics.Core
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
+            // SensationCoreがシーンに無ければ生成し、Start()を待たず即座に初期化する。
+            // これが無いと、SensationSource.SensationBlockのセッター内部処理が丸ごとスキップされ、
+            // Inputsが空のまま(inputs_がnull)でNullReferenceExceptionになる。
+            if (SensationCore.Instance == null)
+            {
+                var sensationCore = gameObject.AddComponent<SensationCore>();
+                sensationCore.CreateSensationCore();
+            }
+
             emitter = gameObject.AddComponent<SensationEmitter>();
             emitter.AllowMockEmitter = allowMockEmitter;
 

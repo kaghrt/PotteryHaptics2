@@ -15,11 +15,13 @@ namespace PotteryHaptics.Core
     public class HapticOutputController : MonoBehaviour
     {
         [SerializeField] private List<VirtualSurfaceBase> surfaces = new List<VirtualSurfaceBase>();
-        public IReadOnlyList<VirtualSurfaceBase> Surfaces => surfaces; // ★追加: テストから参照できるように
-
+        public IReadOnlyList<VirtualSurfaceBase> Surfaces => surfaces;
 
         [Tooltip("集束点の位置を取得するFingerTracker。弾性用/粘性用Surfaceで共有しているものを1つ渡す。")]
         [SerializeField] private FingerTracker fingerTracker;
+
+        [Tooltip("forceを超音波の0〜1強度へ正規化するための基準値(maxForceForFullIntensity)を持つ設定アセット。")]
+        [SerializeField] private HapticCalibrationConfig calibrationConfig;
 
         [Header("デバッグログ")]
         [SerializeField] private bool logToConsole = true;
@@ -43,7 +45,9 @@ namespace PotteryHaptics.Core
             if (logTimer < logIntervalSec) return;
 
             logTimer = 0f;
-            Debug.Log($"[HapticOutputController] Force={force:0.00}, Contact={isInContact}");
+            Vector3 posCm = fingerTracker != null ? fingerTracker.CurrentPositionCm : Vector3.zero;
+            float speed = fingerTracker != null ? fingerTracker.HorizontalSpeedCmPerSec : 0f;
+            Debug.Log($"[HapticOutputController] Force={force:0.00}, Contact={isInContact}, HeightY={posCm.y:0.0}cm, SpeedXZ={speed:0.0}cm/s");
         }
 
         /// <summary>
@@ -72,8 +76,11 @@ namespace PotteryHaptics.Core
         {
             if (HapticDeviceService.Instance == null || fingerTracker == null) return;
 
+            float maxForce = calibrationConfig != null ? calibrationConfig.maxForceForFullIntensity : 2.0f;
+            float intensity01 = maxForce > 0f ? Mathf.Clamp01(force / maxForce) : 0f;
+
             Vector3 fingerPositionM = fingerTracker.CurrentPositionCm * 0.01f;
-            HapticDeviceService.Instance.SetFocalPoint(fingerPositionM, force, isInContact);
+            HapticDeviceService.Instance.SetFocalPoint(fingerPositionM, intensity01, isInContact);
         }
     }
 }

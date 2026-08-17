@@ -1473,6 +1473,7 @@ MonoBehaviour:
   surfaces:
   - {fileID: 1184258895}
   fingerTracker: {fileID: 1573026577}
+  calibrationConfig: {fileID: 11400000, guid: ee162f7e4bf862f46a05bf73555a131b, type: 2}
   logToConsole: 1
   logIntervalSec: 0.5
 --- !u!4 &1795498973

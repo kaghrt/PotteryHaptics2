@@ -666,6 +666,7 @@ MonoBehaviour:
   - {fileID: 1589413663}
   - {fileID: 1021076982}
   fingerTracker: {fileID: 400196499}
+  calibrationConfig: {fileID: 11400000, guid: ee162f7e4bf862f46a05bf73555a131b, type: 2}
   logToConsole: 1
   logIntervalSec: 0.5
 --- !u!4 &768687863
