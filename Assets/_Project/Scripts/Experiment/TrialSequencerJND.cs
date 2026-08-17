@@ -17,7 +17,7 @@ namespace PotteryHaptics.Experiment
         [SerializeField] private MonoBehaviour visualConditionSwitcherBehaviour;
         [SerializeField] private StimulusDefinition standardStimulus;
         [SerializeField] private StimulusDefinition[] comparisonStimuli;
-        [SerializeField] private int trialsPerLevel = 20;
+        [SerializeField] private int trialsPerLevel = 8;
         [SerializeField] private float presentationDurationSec = 2f;
         [SerializeField] private float interStimulusIntervalSec = 0.5f;
         [SerializeField] private string phaseName = "JND";

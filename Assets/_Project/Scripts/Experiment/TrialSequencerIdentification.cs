@@ -19,7 +19,7 @@ namespace PotteryHaptics.Experiment
         [SerializeField] private StimulusDefinition elasticityStrongStimulus;
         [SerializeField] private StimulusDefinition viscosityWeakStimulus;
         [SerializeField] private StimulusDefinition viscosityStrongStimulus;
-        [SerializeField] private int trialsPerStimulus = 15;
+        [SerializeField] private int trialsPerStimulus = 8;
         [SerializeField] private float presentationDurationSec = 3f;
         [SerializeField] private string phaseName = "Identification";
 
