@@ -72,6 +72,16 @@ namespace PotteryHaptics.Core
         /// 一致している前提になっている。実機での座標ズレが確認された場合は、
         /// HDK-REC192の設置位置に応じたオフセット/回転補正をここに追加すること。
         /// </summary>
+        /// <summary>
+        /// HapticDeviceService経由でUltrahaptics実機(またはMockデバイス)に出力する。
+        /// FingerTrackerのCurrentPositionCm(cm単位, Unity空間)をメートルに変換した上で、
+        /// UltrahapticsCoreAsset.UnityToEmitterSpace.Transform(Y軸とZ軸を入れ替える公式の変換行列)
+        /// を通してエミッタ空間の座標に変換する。
+        ///
+        /// 【注意】これは軸の入れ替えのみを行っており、デバイス設置位置に応じた原点オフセットは
+        /// 含まれていない。実機での座標ズレが確認された場合は、HDK-REC192の設置Transformに応じた
+        /// オフセット補正を追加すること。
+        /// </summary>
         private void SendForceToDevice(float force, bool isInContact)
         {
             if (HapticDeviceService.Instance == null || fingerTracker == null) return;
@@ -80,7 +90,9 @@ namespace PotteryHaptics.Core
             float intensity01 = maxForce > 0f ? Mathf.Clamp01(force / maxForce) : 0f;
 
             Vector3 fingerPositionM = fingerTracker.CurrentPositionCm * 0.01f;
-            HapticDeviceService.Instance.SetFocalPoint(fingerPositionM, intensity01, isInContact);
+            Vector3 emitterSpacePosition = UltrahapticsCoreAsset.UnityToEmitterSpace.Transform.MultiplyPoint3x4(fingerPositionM);
+
+            HapticDeviceService.Instance.SetFocalPoint(emitterSpacePosition, intensity01, isInContact);
         }
     }
 }
