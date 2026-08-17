@@ -1311,8 +1311,10 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
+  stringTagMap:
+    RenderType: Opaque
+  disabledShaderPasses:
+  - MOTIONVECTORS
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
@@ -1409,7 +1411,7 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 0.6, g: 0.6, b: 0.6, a: 1}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 0.6, g: 0.6, b: 0.6, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
   m_BuildTextureStacks: []
@@ -1445,6 +1447,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: _Project.Core::PotteryHaptics.Core.HapticOutputController
   surfaces:
   - {fileID: 1184258895}
+  fingerTracker: {fileID: 1573026577}
+  logToConsole: 1
+  logIntervalSec: 0.5
 --- !u!4 &1795498973
 Transform:
   m_ObjectHideFlags: 0
