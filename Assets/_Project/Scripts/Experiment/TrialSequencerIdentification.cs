@@ -8,29 +8,25 @@ namespace PotteryHaptics.Experiment
 {
     /// <summary>
     /// 弾性/粘性の4刺激(強弱×2)をランダムに提示し、「弾性/粘性のどちらだったか」を2AFCで回答させる。
+    /// 映像条件は常にRich(Minimal/Rich比較は廃止済み)。視覚オブジェクトは質感によらない
+    /// 共通の反応オブジェクト(NeutralInteractiveVisualDriver)を用い、見た目から正答が
+    /// 漏れないようにする。
     /// </summary>
     public class TrialSequencerIdentification : MonoBehaviour
     {
         [SerializeField] private ElasticitySurface elasticitySurface;
         [SerializeField] private ViscositySurface viscositySurface;
         [SerializeField] private ResponseUI responseUI;
-        [SerializeField] private MonoBehaviour visualConditionSwitcherBehaviour;
         [SerializeField] private StimulusDefinition elasticityWeakStimulus;
         [SerializeField] private StimulusDefinition elasticityStrongStimulus;
         [SerializeField] private StimulusDefinition viscosityWeakStimulus;
         [SerializeField] private StimulusDefinition viscosityStrongStimulus;
-        [SerializeField] private int trialsPerStimulus = 8;
+        [SerializeField] private int trialsPerStimulus = 16;
         [SerializeField] private float presentationDurationSec = 3f;
         [SerializeField] private string phaseName = "Identification";
 
-        private IVisualConditionSwitcher visualConditionSwitcher;
         private TrialLogger logger;
         private int trialIndex;
-
-        private void Awake()
-        {
-            visualConditionSwitcher = visualConditionSwitcherBehaviour as IVisualConditionSwitcher;
-        }
 
         private void Start()
         {
@@ -50,20 +46,10 @@ namespace PotteryHaptics.Experiment
                 viscosityWeakStimulus, viscosityStrongStimulus
             };
 
-            for (int half = 0; half < 2; half++)
+            List<StimulusDefinition> trials = BuildTrialList(stimulusSet);
+            foreach (StimulusDefinition stimulus in trials)
             {
-                bool isSecondHalf = half == 1;
-                VisualCondition condition = ExperimentManager.Instance != null
-                    ? ExperimentManager.Instance.GetVisualCondition(isSecondHalf)
-                    : VisualCondition.Minimal;
-
-                visualConditionSwitcher?.SetVisualCondition(condition);
-
-                List<StimulusDefinition> trials = BuildTrialList(stimulusSet);
-                foreach (StimulusDefinition stimulus in trials)
-                {
-                    yield return RunSingleTrial(stimulus, condition);
-                }
+                yield return RunSingleTrial(stimulus);
             }
 
             logger.Close();
@@ -98,7 +84,7 @@ namespace PotteryHaptics.Experiment
             }
         }
 
-        private IEnumerator RunSingleTrial(StimulusDefinition stimulus, VisualCondition condition)
+        private IEnumerator RunSingleTrial(StimulusDefinition stimulus)
         {
             bool isElasticity = stimulus.TextureType == TextureType.Elasticity;
 
@@ -141,7 +127,7 @@ namespace PotteryHaptics.Experiment
             {
                 participantId = ExperimentManager.Instance != null ? ExperimentManager.Instance.ParticipantId : "unknown",
                 phase = phaseName,
-                visualCondition = condition,
+                visualCondition = VisualCondition.Rich,
                 trialIndex = trialIndex,
                 textureType = stimulus.TextureType,
                 stimulusName = stimulus.DisplayName,

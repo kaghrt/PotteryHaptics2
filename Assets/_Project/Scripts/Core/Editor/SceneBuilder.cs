@@ -120,7 +120,8 @@ namespace PotteryHaptics.Core.Editor
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { elasticitySurface });
 
-            VisualController visualController = CreateElasticityVisuals(out GameObject bowlGo);
+            GameObject visualRootGo = new GameObject("RichVisual");
+            GameObject bowlGo = CreateBowlObject(visualRootGo.transform);
 
             DeformationShaderDriver deformationDriver = bowlGo.AddComponent<DeformationShaderDriver>();
             SetObjectField(deformationDriver, "elasticitySurface", elasticitySurface);
@@ -138,7 +139,6 @@ namespace PotteryHaptics.Core.Editor
 
             SetObjectField(sequencer, "surface", elasticitySurface);
             SetObjectField(sequencer, "responseUI", responseUI);
-            SetObjectField(sequencer, "visualConditionSwitcherBehaviour", visualController);
             SetObjectField(sequencer, "standardStimulus", standard);
             SetObjectArrayField(sequencer, "comparisonStimuli", elasticityStimuli);
             SetStringField(sequencer, "phaseName", "JND_Elasticity");
@@ -171,7 +171,8 @@ namespace PotteryHaptics.Core.Editor
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { viscositySurface });
 
-            VisualController visualController = CreateViscosityVisuals(out GameObject mudGo);
+            GameObject visualRootGo = new GameObject("RichVisual");
+            GameObject mudGo = CreateMudBlobObject(visualRootGo.transform);
 
             MudStretchDriver stretchDriver = mudGo.AddComponent<MudStretchDriver>();
             SetObjectField(stretchDriver, "viscositySurface", viscositySurface);
@@ -189,7 +190,6 @@ namespace PotteryHaptics.Core.Editor
 
             SetObjectField(sequencer, "surface", viscositySurface);
             SetObjectField(sequencer, "responseUI", responseUI);
-            SetObjectField(sequencer, "visualConditionSwitcherBehaviour", visualController);
             SetObjectField(sequencer, "standardStimulus", standard);
             SetObjectArrayField(sequencer, "comparisonStimuli", viscosityStimuli);
             SetStringField(sequencer, "phaseName", "JND_Viscosity");
@@ -229,7 +229,7 @@ namespace PotteryHaptics.Core.Editor
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { elasticitySurface, viscositySurface });
 
-            VisualController visualController = CreateIdentificationVisuals(elasticitySurface, viscositySurface);
+            CreateNeutralInteractiveVisual(elasticitySurface, viscositySurface);
 
             CreateEventSystem();
             Canvas canvas = CreateCanvas("IdentificationCanvas");
@@ -241,7 +241,6 @@ namespace PotteryHaptics.Core.Editor
             SetObjectField(sequencer, "elasticitySurface", elasticitySurface);
             SetObjectField(sequencer, "viscositySurface", viscositySurface);
             SetObjectField(sequencer, "responseUI", responseUI);
-            SetObjectField(sequencer, "visualConditionSwitcherBehaviour", visualController);
             SetObjectField(sequencer, "elasticityWeakStimulus", StimulusSetGenerator.LoadIdentificationStimulus(TextureType.Elasticity, IntensityLevel.Weak));
             SetObjectField(sequencer, "elasticityStrongStimulus", StimulusSetGenerator.LoadIdentificationStimulus(TextureType.Elasticity, IntensityLevel.Strong));
             SetObjectField(sequencer, "viscosityWeakStimulus", StimulusSetGenerator.LoadIdentificationStimulus(TextureType.Viscosity, IntensityLevel.Weak));
@@ -427,68 +426,27 @@ namespace PotteryHaptics.Core.Editor
 
         // ==================== 視覚オブジェクト生成 ====================
 
-        private static VisualController CreateElasticityVisuals(out GameObject bowlGo)
+        /// <summary>
+        /// Identification課題用の、質感によらない単一の反応オブジェクトを生成し、
+        /// NeutralInteractiveVisualDriverで弾性/粘性それぞれのSurfaceに連動させる。
+        /// 弾性・粘性で見た目(メッシュ・マテリアル)を変えないことで、正答が見た目から
+        /// 漏れないようにする。
+        /// </summary>
+        private static void CreateNeutralInteractiveVisual(ElasticitySurface elasticitySurface, ViscositySurface viscositySurface)
         {
-            GameObject rootGo = new GameObject("VisualController");
-            VisualController visualController = rootGo.AddComponent<VisualController>();
+            GameObject rootGo = new GameObject("NeutralVisual");
+            GameObject sphereGo = CreateNeutralSphere(rootGo.transform);
 
-            GameObject minimalGo = CreateMinimalSphere(rootGo.transform);
-            GameObject richGo = new GameObject("RichVisual");
-            richGo.transform.SetParent(rootGo.transform, false);
-
-            bowlGo = CreateBowlObject(richGo.transform);
-
-            SetObjectField(visualController, "minimalVisual", minimalGo);
-            SetObjectField(visualController, "richVisual", richGo);
-
-            return visualController;
+            NeutralInteractiveVisualDriver driver = rootGo.AddComponent<NeutralInteractiveVisualDriver>();
+            SetObjectField(driver, "elasticitySurface", elasticitySurface);
+            SetObjectField(driver, "viscositySurface", viscositySurface);
+            SetObjectField(driver, "visualTransform", sphereGo.transform);
         }
 
-        private static VisualController CreateViscosityVisuals(out GameObject mudGo)
-        {
-            GameObject rootGo = new GameObject("VisualController");
-            VisualController visualController = rootGo.AddComponent<VisualController>();
-
-            GameObject minimalGo = CreateMinimalSphere(rootGo.transform);
-            GameObject richGo = new GameObject("RichVisual");
-            richGo.transform.SetParent(rootGo.transform, false);
-
-            mudGo = CreateMudBlobObject(richGo.transform);
-
-            SetObjectField(visualController, "minimalVisual", minimalGo);
-            SetObjectField(visualController, "richVisual", richGo);
-
-            return visualController;
-        }
-
-        private static VisualController CreateIdentificationVisuals(ElasticitySurface elasticitySurface, ViscositySurface viscositySurface)
-        {
-            GameObject rootGo = new GameObject("VisualController");
-            VisualController visualController = rootGo.AddComponent<VisualController>();
-
-            GameObject minimalGo = CreateMinimalSphere(rootGo.transform);
-            GameObject richGo = new GameObject("RichVisual");
-            richGo.transform.SetParent(rootGo.transform, false);
-
-            GameObject bowlGo = CreateBowlObject(richGo.transform);
-            ShowWhenSurfaceActive bowlShow = bowlGo.AddComponent<ShowWhenSurfaceActive>();
-            SetObjectField(bowlShow, "surface", elasticitySurface);
-
-            GameObject mudGo = CreateMudBlobObject(richGo.transform);
-            mudGo.transform.localPosition = new Vector3(0.15f, 0f, 0f);
-            ShowWhenSurfaceActive mudShow = mudGo.AddComponent<ShowWhenSurfaceActive>();
-            SetObjectField(mudShow, "surface", viscositySurface);
-
-            SetObjectField(visualController, "minimalVisual", minimalGo);
-            SetObjectField(visualController, "richVisual", richGo);
-
-            return visualController;
-        }
-
-        private static GameObject CreateMinimalSphere(Transform parent)
+        private static GameObject CreateNeutralSphere(Transform parent)
         {
             GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            sphere.name = "MinimalVisual";
+            sphere.name = "NeutralSphere";
             sphere.transform.SetParent(parent, false);
             sphere.transform.localScale = Vector3.one * 0.1f;
             sphere.GetComponent<Renderer>().sharedMaterial = GetNeutralMaterial();
