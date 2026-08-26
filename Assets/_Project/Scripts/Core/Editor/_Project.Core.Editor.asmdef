@@ -4,7 +4,9 @@
     "references": [
         "_Project.Core",
         "_Project.Experiment",
-        "_Project.Visual"
+        "_Project.Visual",
+        "Ultraleap.Tracking.Core",
+        "Ultraleap.Tracking.Hands"
     ],
     "includePlatforms": [
         "Editor"

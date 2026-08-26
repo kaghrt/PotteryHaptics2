@@ -2,7 +2,9 @@
     "name": "_Project.Core",
     "rootNamespace": "PotteryHaptics.Core",
     "references": [
-        "GUID:bd1456e08c498496c826ce7d2c6cf85f"
+        "GUID:bd1456e08c498496c826ce7d2c6cf85f",
+        "GUID:cec9848704c49724192ff47f9b3e9156",
+        "GUID:dba0504bd56f224468f91b4ddeba1eee"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
