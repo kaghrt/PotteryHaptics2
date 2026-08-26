@@ -78,6 +78,12 @@ namespace PotteryHaptics.Core.Editor
             GameObject experimentManagerGo = new GameObject("ExperimentManager");
             experimentManagerGo.AddComponent<ExperimentManager>();
 
+            // ★修正: HapticDeviceService(実機接続の窓口)がLauncherシーンに一切
+            // 追加されていなかった。DontDestroyOnLoadでシーンをまたいで生存する設計のため、
+            // Launcher経由で起動しないと以降のシーンで実機出力が一切機能しない。
+            GameObject hapticDeviceServiceGo = new GameObject("HapticDeviceService");
+            hapticDeviceServiceGo.AddComponent<HapticDeviceService>();
+
             GameObject sceneFlowGo = new GameObject("SceneFlowController");
             sceneFlowGo.AddComponent<SceneFlowController>();
 
@@ -119,6 +125,10 @@ namespace PotteryHaptics.Core.Editor
             GameObject outputGo = new GameObject("HapticOutputController");
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { elasticitySurface });
+            // ★修正: fingerTracker/calibrationConfigが未配線だった
+            // (これが無いとSendForceToDeviceの先頭でreturnし、実機出力が一切行われない)。
+            SetObjectField(output, "fingerTracker", fingerTracker);
+            SetObjectField(output, "calibrationConfig", config);
 
             GameObject visualRootGo = new GameObject("RichVisual");
             GameObject bowlGo = CreateBowlObject(visualRootGo.transform);
@@ -170,6 +180,9 @@ namespace PotteryHaptics.Core.Editor
             GameObject outputGo = new GameObject("HapticOutputController");
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { viscositySurface });
+            // ★修正: fingerTracker/calibrationConfigが未配線だった
+            SetObjectField(output, "fingerTracker", fingerTracker);
+            SetObjectField(output, "calibrationConfig", config);
 
             GameObject visualRootGo = new GameObject("RichVisual");
             GameObject mudGo = CreateMudBlobObject(visualRootGo.transform);
@@ -228,6 +241,9 @@ namespace PotteryHaptics.Core.Editor
             GameObject outputGo = new GameObject("HapticOutputController");
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { elasticitySurface, viscositySurface });
+            // ★修正: fingerTracker/calibrationConfigが未配線だった
+            SetObjectField(output, "fingerTracker", fingerTracker);
+            SetObjectField(output, "calibrationConfig", config);
 
             CreateNeutralInteractiveVisual(elasticitySurface, viscositySurface);
 

@@ -23,6 +23,12 @@ namespace PotteryHaptics.Core
         [Tooltip("forceを超音波の0〜1強度へ正規化するための基準値(maxForceForFullIntensity)を持つ設定アセット。")]
         [SerializeField] private HapticCalibrationConfig calibrationConfig;
 
+        [Header("強度調整の診断用(切り分けが済んだらfalseに戻すこと)")]
+        [Tooltip("ONにすると、力の大きさに関わらず接触中は常にintensity=1.0(最大)で出力する。" +
+                 "これで強く感じられればソフト側の正規化設定(maxForceForFullIntensity)の問題、" +
+                 "これでも弱いままならハード側(デバイス自体の出力上限)の限界だと切り分けられる。")]
+        [SerializeField] private bool debugForceMaxIntensity = false;
+
         [Header("デバッグログ")]
         [SerializeField] private bool logToConsole = true;
         [SerializeField] private float logIntervalSec = 0.5f;
@@ -47,7 +53,7 @@ namespace PotteryHaptics.Core
             logTimer = 0f;
             Vector3 posCm = fingerTracker != null ? fingerTracker.CurrentPositionCm : Vector3.zero;
             float speed = fingerTracker != null ? fingerTracker.HorizontalSpeedCmPerSec : 0f;
-            Debug.Log($"[HapticOutputController] Force={force:0.00}, Contact={isInContact}, HeightY={posCm.y:0.0}cm, SpeedXZ={speed:0.0}cm/s");
+            Debug.Log($"[HapticOutputController] Force={force:0.00}, Contact={isInContact}, HeightY={posCm.y:0.0}cm, SpeedXZ={speed:0.0}cm/s, DebugMaxIntensity={debugForceMaxIntensity}");
         }
 
         /// <summary>
@@ -66,14 +72,6 @@ namespace PotteryHaptics.Core
 
         /// <summary>
         /// HapticDeviceService経由でUltrahaptics実機(またはMockデバイス)に出力する。
-        /// FingerTrackerのCurrentPositionCm(cm単位, Unity空間)を、エミッタ空間(メートル単位)に変換して渡す。
-        ///
-        /// 【注意】cm→mの単位変換のみ行っており、Unity空間の原点・軸とエミッタ空間の原点・軸が
-        /// 一致している前提になっている。実機での座標ズレが確認された場合は、
-        /// HDK-REC192の設置位置に応じたオフセット/回転補正をここに追加すること。
-        /// </summary>
-        /// <summary>
-        /// HapticDeviceService経由でUltrahaptics実機(またはMockデバイス)に出力する。
         /// FingerTrackerのCurrentPositionCm(cm単位, Unity空間)をメートルに変換した上で、
         /// UltrahapticsCoreAsset.UnityToEmitterSpace.Transform(Y軸とZ軸を入れ替える公式の変換行列)
         /// を通してエミッタ空間の座標に変換する。
@@ -86,8 +84,17 @@ namespace PotteryHaptics.Core
         {
             if (HapticDeviceService.Instance == null || fingerTracker == null) return;
 
-            float maxForce = calibrationConfig != null ? calibrationConfig.maxForceForFullIntensity : 2.0f;
-            float intensity01 = maxForce > 0f ? Mathf.Clamp01(force / maxForce) : 0f;
+            float intensity01;
+            if (debugForceMaxIntensity)
+            {
+                // 診断モード: 接触してさえいれば強さに関わらず常に最大出力にする
+                intensity01 = isInContact ? 1.0f : 0f;
+            }
+            else
+            {
+                float maxForce = calibrationConfig != null ? calibrationConfig.maxForceForFullIntensity : 2.0f;
+                intensity01 = maxForce > 0f ? Mathf.Clamp01(force / maxForce) : 0f;
+            }
 
             Vector3 fingerPositionM = fingerTracker.CurrentPositionCm * 0.01f;
             Vector3 emitterSpacePosition = UltrahapticsCoreAsset.UnityToEmitterSpace.Transform.MultiplyPoint3x4(fingerPositionM);
