@@ -11,6 +11,12 @@ namespace PotteryHaptics.Core
     /// 試行ごとにどちらか一方にのみActiveStimulusを割り当てる(もう一方はnullのまま=Force常に0)。
     /// そのため、ここでは複数surfaceを受け取り、現在接触中(IsInContact)のものを毎フレーム探して出力する。
     /// JND系シーンではsurfaceを1つだけ渡せばよい。
+    ///
+    /// 【接触開始時のアタック強調(2026-09)】
+    /// 人間の触覚には順応(同じ刺激が続くと感じにくくなる)があり、持続的に一定の変調を
+    /// 出し続けるだけでは弱く感じられることが実機検証で分かった。
+    /// Ultraleap公式デモ(Fixed Button等)は接触の瞬間に強く感じられたことから、
+    /// 接触開始の瞬間だけintensityを一時的に強調する「アタック」を追加した。
     /// </summary>
     public class HapticOutputController : MonoBehaviour
     {
@@ -23,10 +29,14 @@ namespace PotteryHaptics.Core
         [Tooltip("forceを超音波の0〜1強度へ正規化するための基準値(maxForceForFullIntensity)を持つ設定アセット。")]
         [SerializeField] private HapticCalibrationConfig calibrationConfig;
 
+        [Header("接触開始時のアタック強調")]
+        [Tooltip("接触開始からこの秒数の間、アタック強調を適用する")]
+        [SerializeField] private float attackDurationSec = 0.2f;
+        [Tooltip("アタック中、通常のintensityに掛ける倍率(1.0でクランプされるため実質的な上限は1.0)")]
+        [SerializeField] private float attackMultiplier = 1.8f;
+
         [Header("強度調整の診断用(切り分けが済んだらfalseに戻すこと)")]
-        [Tooltip("ONにすると、力の大きさに関わらず接触中は常にintensity=1.0(最大)で出力する。" +
-                 "これで強く感じられればソフト側の正規化設定(maxForceForFullIntensity)の問題、" +
-                 "これでも弱いままならハード側(デバイス自体の出力上限)の限界だと切り分けられる。")]
+        [Tooltip("ONにすると、力の大きさに関わらず接触中は常にintensity=1.0(最大)で出力する。")]
         [SerializeField] private bool debugForceMaxIntensity = false;
 
         [Header("デバッグログ")]
@@ -34,6 +44,8 @@ namespace PotteryHaptics.Core
         [SerializeField] private float logIntervalSec = 0.5f;
 
         private float logTimer;
+        private bool wasInContact;
+        private float timeSinceContactStart;
 
         private void Update()
         {
@@ -43,6 +55,7 @@ namespace PotteryHaptics.Core
             float force = active != null ? active.CurrentForce : 0f;
             bool isInContact = active != null && active.IsInContact;
 
+            UpdateAttackTimer(isInContact);
             SendForceToDevice(force, isInContact);
 
             if (!logToConsole) return;
@@ -53,7 +66,29 @@ namespace PotteryHaptics.Core
             logTimer = 0f;
             Vector3 posCm = fingerTracker != null ? fingerTracker.CurrentPositionCm : Vector3.zero;
             float speed = fingerTracker != null ? fingerTracker.HorizontalSpeedCmPerSec : 0f;
-            Debug.Log($"[HapticOutputController] Force={force:0.00}, Contact={isInContact}, HeightY={posCm.y:0.0}cm, SpeedXZ={speed:0.0}cm/s, DebugMaxIntensity={debugForceMaxIntensity}");
+            Debug.Log($"[HapticOutputController] Force={force:0.00}, Contact={isInContact}, HeightY={posCm.y:0.0}cm, SpeedXZ={speed:0.0}cm/s, DebugMaxIntensity={debugForceMaxIntensity}, AttackT={timeSinceContactStart:0.00}");
+        }
+
+        /// <summary>
+        /// 接触が新たに始まった瞬間(false→true)を検知し、経過時間をリセットする。
+        /// 接触が続いている間は経過時間を積算し、接触が切れたらリセットする。
+        /// </summary>
+        private void UpdateAttackTimer(bool isInContact)
+        {
+            if (isInContact && !wasInContact)
+            {
+                timeSinceContactStart = 0f;
+            }
+            else if (isInContact)
+            {
+                timeSinceContactStart += Time.deltaTime;
+            }
+            else
+            {
+                timeSinceContactStart = 0f;
+            }
+
+            wasInContact = isInContact;
         }
 
         /// <summary>
@@ -75,10 +110,7 @@ namespace PotteryHaptics.Core
         /// FingerTrackerのCurrentPositionCm(cm単位, Unity空間)をメートルに変換した上で、
         /// UltrahapticsCoreAsset.UnityToEmitterSpace.Transform(Y軸とZ軸を入れ替える公式の変換行列)
         /// を通してエミッタ空間の座標に変換する。
-        ///
-        /// 【注意】これは軸の入れ替えのみを行っており、デバイス設置位置に応じた原点オフセットは
-        /// 含まれていない。実機での座標ズレが確認された場合は、HDK-REC192の設置Transformに応じた
-        /// オフセット補正を追加すること。
+        /// 接触開始直後のattackDurationSec間は、intensityにattackMultiplierを掛けて強調する。
         /// </summary>
         private void SendForceToDevice(float force, bool isInContact)
         {
@@ -87,13 +119,17 @@ namespace PotteryHaptics.Core
             float intensity01;
             if (debugForceMaxIntensity)
             {
-                // 診断モード: 接触してさえいれば強さに関わらず常に最大出力にする
                 intensity01 = isInContact ? 1.0f : 0f;
             }
             else
             {
                 float maxForce = calibrationConfig != null ? calibrationConfig.maxForceForFullIntensity : 2.0f;
                 intensity01 = maxForce > 0f ? Mathf.Clamp01(force / maxForce) : 0f;
+            }
+
+            if (isInContact && timeSinceContactStart < attackDurationSec)
+            {
+                intensity01 = Mathf.Clamp01(intensity01 * attackMultiplier);
             }
 
             Vector3 fingerPositionM = fingerTracker.CurrentPositionCm * 0.01f;

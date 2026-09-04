@@ -23,6 +23,12 @@ namespace PotteryHaptics.Core.Editor
         private const string ClayMaterialPath = "Assets/_Project/Materials/ClayMaterial.mat";
         private const string MudMaterialPath = "Assets/_Project/Materials/MudMaterial.mat";
 
+        // ★追加: 実機(Leap Motion)を使うか、開発機向けのキーボード代替入力を使うかの切り替え。
+        // 大学のHDK-REC192があるPCで実機テストする時だけtrueにしてBuild Everythingを実行する。
+        // 実機の無いPCでビルドするとLeapServiceProvider/Leap Motionトラッキングサービス周りで
+        // 意図しない挙動になりうるため、デフォルトはfalse(キーボード代替)にしてある。
+        private const bool UseLeapMotionTracking = true;
+
         private static Material neutralMaterialCache;
 
         [MenuItem("HapticResearch/Build Launcher Scene")]
@@ -78,9 +84,6 @@ namespace PotteryHaptics.Core.Editor
             GameObject experimentManagerGo = new GameObject("ExperimentManager");
             experimentManagerGo.AddComponent<ExperimentManager>();
 
-            // ★修正: HapticDeviceService(実機接続の窓口)がLauncherシーンに一切
-            // 追加されていなかった。DontDestroyOnLoadでシーンをまたいで生存する設計のため、
-            // Launcher経由で起動しないと以降のシーンで実機出力が一切機能しない。
             GameObject hapticDeviceServiceGo = new GameObject("HapticDeviceService");
             hapticDeviceServiceGo.AddComponent<HapticDeviceService>();
 
@@ -125,8 +128,6 @@ namespace PotteryHaptics.Core.Editor
             GameObject outputGo = new GameObject("HapticOutputController");
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { elasticitySurface });
-            // ★修正: fingerTracker/calibrationConfigが未配線だった
-            // (これが無いとSendForceToDeviceの先頭でreturnし、実機出力が一切行われない)。
             SetObjectField(output, "fingerTracker", fingerTracker);
             SetObjectField(output, "calibrationConfig", config);
 
@@ -180,7 +181,6 @@ namespace PotteryHaptics.Core.Editor
             GameObject outputGo = new GameObject("HapticOutputController");
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { viscositySurface });
-            // ★修正: fingerTracker/calibrationConfigが未配線だった
             SetObjectField(output, "fingerTracker", fingerTracker);
             SetObjectField(output, "calibrationConfig", config);
 
@@ -241,7 +241,6 @@ namespace PotteryHaptics.Core.Editor
             GameObject outputGo = new GameObject("HapticOutputController");
             HapticOutputController output = outputGo.AddComponent<HapticOutputController>();
             SetObjectArrayField(output, "surfaces", new Object[] { elasticitySurface, viscositySurface });
-            // ★修正: fingerTracker/calibrationConfigが未配線だった
             SetObjectField(output, "fingerTracker", fingerTracker);
             SetObjectField(output, "calibrationConfig", config);
 
@@ -428,16 +427,63 @@ namespace PotteryHaptics.Core.Editor
             return responseUI;
         }
 
+        /// <summary>
+        /// 指トラッキングの入力源を生成する。
+        /// UseLeapMotionTracking = true の場合は LeapServiceProvider + LeapMotionFingerInputSource、
+        /// false の場合は従来通り DummyKeyboardFingerInputSource を使う。
+        /// FingerTracker.providerGameObject には、実際にIFingerPositionProviderを実装した
+        /// コンポーネントが乗っているGameObjectそのものを渡す（Unity Editorの
+        /// 「同一GameObjectに複数MonoBehaviourがある場合のオブジェクトピッカーの挙動」を
+        /// 回避するため、GameObject単位の参照にしてある）。
+        /// </summary>
         private static FingerTracker CreateFingerTrackerRig()
         {
-            GameObject dummyGo = new GameObject("DummyKeyboardFingerInputSource");
-            DummyKeyboardFingerInputSource dummy = dummyGo.AddComponent<DummyKeyboardFingerInputSource>();
+            GameObject providerGo;
+
+            if (UseLeapMotionTracking)
+            {
+                providerGo = new GameObject("LeapServiceProvider");
+                AddLeapServiceProviderComponent(providerGo);
+
+                var leapInput = providerGo.AddComponent<LeapMotionFingerInputSource>();
+                SetObjectField(leapInput, "leapServiceProvider", GetLeapServiceProviderComponent(providerGo));
+                SetBoolField(leapInput, "preferRightHand", true);
+            }
+            else
+            {
+                providerGo = new GameObject("DummyKeyboardFingerInputSource");
+                providerGo.AddComponent<DummyKeyboardFingerInputSource>();
+            }
 
             GameObject trackerGo = new GameObject("FingerTracker");
             FingerTracker tracker = trackerGo.AddComponent<FingerTracker>();
-            SetObjectField(tracker, "positionProviderBehaviour", dummy);
+            SetObjectField(tracker, "providerGameObject", providerGo);
 
             return tracker;
+        }
+
+        /// <summary>
+        /// Leap.LeapServiceProviderをAddComponentする。型を直接参照すると、実機用パッケージ
+        /// (com.ultraleap.tracking)が導入されていない環境でこのファイル全体がコンパイル
+        /// できなくなるため、リフレクション経由で追加する。
+        /// </summary>
+        private static void AddLeapServiceProviderComponent(GameObject go)
+        {
+            System.Type leapServiceProviderType = System.Type.GetType("Leap.LeapServiceProvider, Ultraleap.Tracking.Core");
+            if (leapServiceProviderType == null)
+            {
+                Debug.LogError("[SceneBuilder] Leap.LeapServiceProviderが見つかりません。" +
+                                "com.ultraleap.trackingパッケージが導入されているか確認してください。");
+                return;
+            }
+
+            go.AddComponent(leapServiceProviderType);
+        }
+
+        private static Component GetLeapServiceProviderComponent(GameObject go)
+        {
+            System.Type leapServiceProviderType = System.Type.GetType("Leap.LeapServiceProvider, Ultraleap.Tracking.Core");
+            return leapServiceProviderType == null ? null : go.GetComponent(leapServiceProviderType);
         }
 
         // ==================== 視覚オブジェクト生成 ====================
@@ -563,6 +609,20 @@ namespace PotteryHaptics.Core.Editor
         {
             var so = new SerializedObject(target);
             so.FindProperty(fieldName).stringValue = value;
+            so.ApplyModifiedProperties();
+        }
+
+        private static void SetBoolField(Object target, string fieldName, bool value)
+        {
+            var so = new SerializedObject(target);
+            SerializedProperty prop = so.FindProperty(fieldName);
+            if (prop == null)
+            {
+                Debug.LogError($"[SceneBuilder] Field not found: {target.GetType().Name}.{fieldName}");
+                return;
+            }
+
+            prop.boolValue = value;
             so.ApplyModifiedProperties();
         }
 

@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4041ddab05bd65e4eaa43bf280653983, type: 3}
   m_Name: HapticCalibrationConfig
   m_EditorClassIdentifier: _Project.Core::PotteryHaptics.Core.HapticCalibrationConfig
-  elasticityBaseK: 1
+  elasticityBaseK: 1.333
   elasticityContactStartHeightCm: 25
-  elasticityMaxPushHeightCm: 5
+  elasticityMaxPushHeightCm: 10
   viscosityBaseB: 1
   viscosityFixedHeightCm: 15
   viscosityHeightToleranceCm: 5

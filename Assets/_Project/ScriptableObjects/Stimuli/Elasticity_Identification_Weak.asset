@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Elasticity_Identification_Weak
   m_EditorClassIdentifier: _Project.Core::PotteryHaptics.Core.StimulusDefinition
   textureType: 0
-  physicalValue: 0.7
+  physicalValue: 0.9330999
   relativeIntensityPercent: 0
   intensityLevel: 1
   displayName: "\u5F3E\u6027(\u5F31)"
