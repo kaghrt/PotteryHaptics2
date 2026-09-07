@@ -928,6 +928,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: _Project.Core::PotteryHaptics.Core.FingerTracker
   providerGameObject: {fileID: 819289206}
+  smoothingWindowSec: 0.25
 --- !u!4 &981099219
 Transform:
   m_ObjectHideFlags: 0
@@ -1275,6 +1276,8 @@ MonoBehaviour:
   - {fileID: 411708561}
   fingerTracker: {fileID: 981099218}
   calibrationConfig: {fileID: 11400000, guid: ee162f7e4bf862f46a05bf73555a131b, type: 2}
+  attackDurationSec: 0.2
+  attackMultiplier: 1.8
   debugForceMaxIntensity: 0
   logToConsole: 1
   logIntervalSec: 0.5
@@ -1331,7 +1334,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 05387502d4928f24c9c05e0b2036ec43, type: 2}
   - {fileID: 11400000, guid: d45037b3d1b40ae41869368d4d5c29cb, type: 2}
   - {fileID: 11400000, guid: 95f6d957483f559429d0cf3962dda6d7, type: 2}
-  trialsPerLevel: 16
+  trialsPerLevel: 1
   presentationDurationSec: 2
   interStimulusIntervalSec: 0.5
   phaseName: JND_Elasticity
