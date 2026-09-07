@@ -2,68 +2,78 @@ from pysensationcore import *
 
 import math
 
-# PotteryHaptics用の最小Sensation Block。
-# 単一の集束点(point)を、可変の強さ(intensity)で出力する。
+# PotteryHaptics用のSensation Block。
+# 指位置を中心に、小さな円軌道を高速で描き続ける(空間時間変調・STM)ことで
+# 触覚を提示する。
 #
-# 【2026-09 修正】当初は (x, y, z, intensity) のタプルを自前で組み立てて返していたが、
-# Ultraleap公式デモ(Demo Suite)のソースを確認したところ、公式の実装は
-# 「位置」と「強さ」を別々に SensationCore 内蔵の SetIntensity ブロックへ渡し、
-# そこで正しく合成させる設計になっていた。
-# 自前でタプルを組み立てる方式は動作はするが、SetIntensityが内部で行っている
-# 正規化・スケーリング処理を経由しないため、実機での出力が弱くなっていた
-# 可能性がある。今回、公式と同じSetIntensity経由の構成に修正した。
+# 【2026-09 大幅修正】当初は「1点を静止させたまま、強さだけを140Hzで上下させる」
+# 振幅変調(AM)方式だった。しかし教授から提供されたUltrahaptics公式サンプル
+# (CircleSensation, RenderPath+CirclePathをdrawFrequency=70Hzで使用)を実機で
+# 確認したところ、intensityは固定(変調なし)のまま、焦点を実際に高速で
+# 動かし続ける方式(STM)の方が、圧倒的に強く感知できることが分かった。
+# これを踏まえ、AMからSTMへ方式を変更した。
 #
-# 強度変調(AM)自体は、公式のIntensityModulation.pyと同じ式・同程度の周波数を採用。
+# 【座標系の注意】pointはC#側(HapticOutputController)で既にエミッタ空間に
+# 変換済みの(x, y, z)。UnityToEmitterSpace.Transformの変換により、
+# エミッタ空間ではz軸が「高さ」に相当する(Unity空間のY軸と対応)。
+# そのため、円軌道はx・y成分(高さに垂直な面)に対して描き、
+# z成分(高さ)には一切手を加えない。
 
 potteryFocalPointBlock = defineBlock("PotteryFocalPoint")
 defineInputs(potteryFocalPointBlock,
             "t",
             "point",
             "intensity",
-            "modulationFrequency")
+            "circleRadius",
+            "drawFrequency")
 
 defineBlockInputDefaultValue(potteryFocalPointBlock.intensity, (0.0, 0.0, 0.0))
 setMetaData(potteryFocalPointBlock.intensity, "Type", "Scalar")
 
-defineBlockInputDefaultValue(potteryFocalPointBlock.modulationFrequency, (143.0, 0.0, 0.0))
-setMetaData(potteryFocalPointBlock.modulationFrequency, "Type", "Scalar")
+defineBlockInputDefaultValue(potteryFocalPointBlock.circleRadius, (0.005, 0.0, 0.0))
+setMetaData(potteryFocalPointBlock.circleRadius, "Type", "Scalar")
 
-def modulateIntensity(inputs):
+defineBlockInputDefaultValue(potteryFocalPointBlock.drawFrequency, (70.0, 0.0, 0.0))
+setMetaData(potteryFocalPointBlock.drawFrequency, "Type", "Scalar")
+
+def emitFocalPoint(inputs):
     time = inputs[0][0]
-    baseIntensity = inputs[1][0]
-    modulationFrequency = inputs[2][0]
+    point = inputs[1]
+    intensity = inputs[2][0]
+    circleRadius = inputs[3][0]
+    drawFrequency = inputs[4][0]
 
-    # 公式IntensityModulation.pyと同じ式(振幅変調)。baseIntensityで全体の強さをスケールする。
-    modulated = baseIntensity * 0.5 * (1 - math.cos(2 * math.pi * time * modulationFrequency))
-    return (modulated, 0.0, 0.0)
+    # 指位置(point)を中心に、半径circleRadiusの円をdrawFrequency[Hz]で描き続ける。
+    # 高さ成分(z)には触れず、x・y成分だけを円運動させる。
+    #
+    # 【2026-09 追加修正】円の半径を、intensityに応じてスケールさせる
+    # (effectiveRadius = circleRadius * intensity)。
+    # 当初は「円の大きさは常に一定、intensityだけが変わる」という設計だったが、
+    # これだと円運動という刺激そのものがintensityとは独立して常に一定の強さで
+    # 感じられてしまい、intensityの微妙な差(±15%・±30%)が円運動の刺激に
+    # 埋もれて弁別しにくいという問題があった。
+    # 「弱い試行は小さく動く、強い試行は大きく動く」という形にすることで、
+    # 動きの大きさそのものが強さの違いを直接表現するようにした。
+    effectiveRadius = circleRadius * intensity
 
-modulationOutputBlock = defineBlock("PotteryIntensityModulation")
-defineInputs(modulationOutputBlock, "t", "baseIntensity", "modulationFrequency")
-defineOutputs(modulationOutputBlock, "out")
-defineBlockOutputBehaviour(modulationOutputBlock.out, modulateIntensity)
-setMetaData(modulationOutputBlock.out, "Sensation-Producing", False)
+    angle = 2.0 * math.pi * time * drawFrequency
+    offsetX = effectiveRadius * math.cos(angle)
+    offsetY = effectiveRadius * math.sin(angle)
 
-modulationInstance = createInstance("PotteryIntensityModulation", "PotteryIntensityModulationInstance")
-connect(potteryFocalPointBlock.t, modulationInstance.t)
-connect(potteryFocalPointBlock.intensity, modulationInstance.baseIntensity)
-connect(potteryFocalPointBlock.modulationFrequency, modulationInstance.modulationFrequency)
+    movedPoint = (point[0] + offsetX, point[1] + offsetY, point[2])
 
-# 公式と同じく、SensationCore内蔵のSetIntensityブロックで位置と強さを合成する。
-setIntensityInstance = createInstance("SetIntensity", "PotteryFocalPointSetIntensityInstance")
-connect(potteryFocalPointBlock.point, setIntensityInstance.point)
-connect(modulationInstance.out, setIntensityInstance.intensity)
+    return (movedPoint[0], movedPoint[1], movedPoint[2], intensity)
 
 defineOutputs(potteryFocalPointBlock, "out")
-connect(setIntensityInstance.out, potteryFocalPointBlock.out)
+defineBlockOutputBehaviour(potteryFocalPointBlock.out, emitFocalPoint)
 setMetaData(potteryFocalPointBlock.out, "Sensation-Producing", True)
 
 attachDocumentation(potteryFocalPointBlock,
                     """
-                    単一の集束点を、高周波(modulationFrequency, デフォルト143Hz)で
-                    強度変調しながら出力するSensation。
-                    位置と強さの合成には、公式デモと同じくSensationCore内蔵の
-                    SetIntensityブロックを使用している。
-                    point: (x, y, z) - エミッタ空間での位置(メートル単位)
-                    intensity: 0.0〜1.0を想定。変調前の基準強度。
-                    modulationFrequency: 強度を振動させる周波数[Hz]。
+                    指位置を中心に、小さな円軌道を高速(drawFrequency, デフォルト70Hz)で
+                    描き続けることで触覚を提示するSensation(空間時間変調・STM)。
+                    point: (x, y, z) - エミッタ空間での中心位置(メートル単位)。
+                    intensity: 0.0〜1.0を想定。強さは基本的に固定でよい(STMが刺激の主体のため)。
+                    circleRadius: 円の半径[m]。デフォルト0.005(0.5cm)。
+                    drawFrequency: 円を描く速さ[Hz]。デフォルト70Hz。
                     """)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace PotteryHaptics.Core
@@ -7,14 +8,11 @@ namespace PotteryHaptics.Core
     /// 実機切り替え時は providerGameObject をLeap用Providerが乗ったオブジェクトに
     /// 差し替えるだけで済む。
     ///
-    /// 【重要】以前は positionProviderBehaviour(MonoBehaviour型)で直接コンポーネントを
-    /// 参照する設計だったが、同じGameObjectに複数のMonoBehaviourが乗っている場合
-    /// （例: LeapServiceProviderとLeapMotionFingerInputSourceが同居するケース）、
-    /// UnityのInspector上でオブジェクトをドラッグすると意図しない方のコンポーネントが
-    /// 選ばれてしまい、正しい方を指定できないというUnity Editor側の既知の挙動があった。
-    /// これを回避するため、GameObject単位で参照を持ち、内部でGetComponentする方式に変更した。
-    /// これによりInspector上ではGameObjectをドラッグするだけでよく、
-    /// コンポーネントの選択が曖昧になることがない。
+    /// 【2026-09 速度の平滑化を追加】
+    /// 当初、HorizontalSpeedCmPerSecは「直前フレームとの瞬間速度」をそのまま使っていたが、
+    /// これだと手のわずかな震えがそのまま速度の激しい変動として現れ、粘性(F = b * speed)側の
+    /// 弁別がしづらいという問題があった。直近smoothingWindowSec秒間の移動平均速度に変更し、
+    /// 瞬間的なブレの影響を抑えつつ、被験者が意図した速さがより安定して反映されるようにした。
     /// </summary>
     public class FingerTracker : MonoBehaviour
     {
@@ -23,9 +21,16 @@ namespace PotteryHaptics.Core
                  "実機ではLeapMotionFingerInputSourceが乗ったオブジェクトを指定する。")]
         [SerializeField] private GameObject providerGameObject;
 
+        [Tooltip("水平移動速度を平滑化する際の移動平均ウィンドウ幅(秒)。" +
+                 "大きくするほど滑らかになるが、反応が遅れる。")]
+        [SerializeField] private float smoothingWindowSec = 0.25f;
+
         private IFingerPositionProvider provider;
         private Vector3 previousPositionCm;
         private bool hasPreviousPosition;
+
+        // 平滑化用: 直近の(距離, 経過時間)のペアを保持するリングバッファ的なリスト
+        private readonly List<(float distanceCm, float deltaTime)> recentSamples = new List<(float, float)>();
 
         public Vector3 CurrentPositionCm { get; private set; }
         public float HorizontalSpeedCmPerSec { get; private set; }
@@ -63,6 +68,7 @@ namespace PotteryHaptics.Core
             {
                 IsTracking = false;
                 HorizontalSpeedCmPerSec = 0f;
+                recentSamples.Clear();
                 return;
             }
 
@@ -71,6 +77,7 @@ namespace PotteryHaptics.Core
             {
                 hasPreviousPosition = false;
                 HorizontalSpeedCmPerSec = 0f;
+                recentSamples.Clear();
                 return;
             }
 
@@ -79,12 +86,52 @@ namespace PotteryHaptics.Core
                 Vector3 previousHorizontal = new Vector3(previousPositionCm.x, 0f, previousPositionCm.z);
                 Vector3 currentHorizontal = new Vector3(positionCm.x, 0f, positionCm.z);
                 float distanceCm = Vector3.Distance(previousHorizontal, currentHorizontal);
-                HorizontalSpeedCmPerSec = distanceCm / Time.deltaTime;
+
+                recentSamples.Add((distanceCm, Time.deltaTime));
+                TrimOldSamples();
+
+                HorizontalSpeedCmPerSec = ComputeAverageSpeed();
             }
 
             CurrentPositionCm = positionCm;
             previousPositionCm = positionCm;
             hasPreviousPosition = true;
+        }
+
+        /// <summary>
+        /// smoothingWindowSecより古いサンプルをリストから取り除く。
+        /// </summary>
+        private void TrimOldSamples()
+        {
+            float totalTime = 0f;
+            foreach (var sample in recentSamples)
+            {
+                totalTime += sample.deltaTime;
+            }
+
+            while (totalTime > smoothingWindowSec && recentSamples.Count > 1)
+            {
+                totalTime -= recentSamples[0].deltaTime;
+                recentSamples.RemoveAt(0);
+            }
+        }
+
+        /// <summary>
+        /// 直近のサンプルから、移動平均速度(cm/秒)を計算する。
+        /// 合計距離 ÷ 合計時間、という単純な移動平均。
+        /// </summary>
+        private float ComputeAverageSpeed()
+        {
+            float totalDistance = 0f;
+            float totalTime = 0f;
+
+            foreach (var sample in recentSamples)
+            {
+                totalDistance += sample.distanceCm;
+                totalTime += sample.deltaTime;
+            }
+
+            return totalTime > 0f ? totalDistance / totalTime : 0f;
         }
 
         /// <summary>
@@ -94,6 +141,7 @@ namespace PotteryHaptics.Core
         {
             providerGameObject = newProviderGameObject;
             hasPreviousPosition = false;
+            recentSamples.Clear();
             ResolveProvider();
         }
     }

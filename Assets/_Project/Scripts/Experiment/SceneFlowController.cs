@@ -5,8 +5,11 @@ using UnityEngine.SceneManagement;
 namespace PotteryHaptics.Experiment
 {
     /// <summary>
-    /// シーン順序(Launcher → JND_Elasticity → JND_Viscosity → Identification)を進行させるsingleton。
+    /// シーン順序(Launcher → JND_Viscosity → JND_Elasticity → Identification)を進行させるsingleton。
     /// シーン名はBuild Settingsのシーンリストと完全一致させること。
+    ///
+    /// 【2026-09 変更】実際の実験では弾性→粘性ではなく、粘性→弾性の順で実施することになったため、
+    /// SceneOrderの並びをJND_Viscosity → JND_Elasticityに変更した。
     /// </summary>
     public class SceneFlowController : MonoBehaviour
     {
@@ -15,8 +18,8 @@ namespace PotteryHaptics.Experiment
         private static readonly string[] SceneOrder =
         {
             "Launcher",
-            "JND_Elasticity",
             "JND_Viscosity",
+            "JND_Elasticity",
             "Identification"
         };
 
@@ -32,7 +35,6 @@ namespace PotteryHaptics.Experiment
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
-
             currentSceneOrderIndex = Array.IndexOf(SceneOrder, SceneManager.GetActiveScene().name);
         }
 
